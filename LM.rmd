@@ -1,0 +1,288 @@
+---
+title: "Linear Regression for Traffic Volume"
+author: "MA"
+date: "April 27, 2018"
+output: github_document
+---
+<style type="text/css">
+
+body{ /* Normal  */
+      font-size: 12px;
+  }
+td {  /* Table  */
+  font-size: 8px;
+}
+h1.title {
+  font-size: 14px;
+  color: DarkRed;
+}
+h1 { /* Header 1 */
+  font-size: 16px;
+  color: DarkBlue;
+}
+h2 { /* Header 2 */
+    font-size: 18px;
+  color: DarkBlue;
+}
+h3 { /* Header 3 */
+  font-size: 22px;
+  font-family: "Times New Roman", Times, serif;
+  color: DarkBlue;
+}
+code.r{ /* Code block */
+    font-size: 12px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 14px;
+}
+</style>
+
+##Introduction
+This is one of my course projects finished at PSU. The project attempts to explore a multiple linear regression model to estimate average annual daily traffic (AADT) of minor roads at signalized intersections in Colorado. Due to the privacy, I will not display the dataset and just show the general process that how I built the multiple linear regression to estimate the traffic volume. 
+
+65 signalized intersections were selected as samples and 22 potential variables, including Major Rodad Traffice Volume, number of Total Traffice Leanes on Major road, Speed Limit on Major Road, County Population, City Median Income and so on, were collected for building the model. 
+
+##Data Collection
+Read and get the data ready in R
+```{r,echo=TRUE}
+LIM<-read.csv('C:\\G\\desk\\STAT 564\\project\\LIM.csv',header=TRUE,sep=",")
+mydata<-cbind(LIM[,7:36])
+mydata<-mydata[-31,]
+colnames(mydata)<-paste("m2017.",names(mydata),sep ='')
+colnames(mydata)[9]<-"m2017.PV"
+colnames(mydata)[26]<-"m2017.lMj"
+colnames(mydata)[27]<-"m2017.lMn"
+colnames(mydata)[28]<-"m2017.lpv"
+```
+
+##Model building
+
+#correlation 
+```{r, echo=TRUE}
+cor(mydata[,1:13])
+```
+
+The matrix reveals there are high correlation between “2017.County. Per.
+Capital .Income” and “2017.County Med. Income”(r=0.8384), “2017.Net_Den” and “2017.Int_Den”(r=0.9188). Since
+they are highly relevant, only “2017.County. Per. Capital .Income” and “2017.Net_Den” would be introduced into
+the model “2017.County Med. Income” and “2017.Int_Den” were not considered in this case.
+
+#Transformation
+In most transportation researches, average annual daily traffic data would be transformed to log(average annual daily traffic) especially in linear models. In most cases, average annual daily traffic data would violate the assumption of normal distribution assumption and thus, effect the model building and diagnose. Using average annual daily traffic data of major roads for example, Figure 1 shows that the original data do suffer the problem of violation to normal distribution and transformation solve this problem well. Thus, all average annual daily traffic data, including on major road, minor road and paralleled road, are transformed to log format.
+
+```{r, echo=TRUE}
+par(mfrow=c(1,2))
+qqnorm(y=mydata[,"m2017.lMn"])
+qqline(y=mydata[,"m2017.lMn"])
+qqnorm(y=log(mydata[,"m2017.lMn"]))
+qqline(y=log(mydata[,"m2017.lMn"]))
+```
+
+#Variable selection and model building
+All regression analysis is impractical and inefficient because 222-1 models need to be analyzed by this method. Therefore, Forward Selection, Backward Elimination and Stepwise regression by the Akaike Information Criterion (AIC) were performed first, and all regression analysis, based on all variables mentioned by the results of three methods performed before, were used to search any other possible models.
+
+#Forward Selection
+The Forward Selection starts with only intercept in the model and ends with all regressors who meet the criteria entered the model. Each step, only the regressor with lowest AIC could be introduced to the model.
+```{r,echo=TRUE}
+model<-LIM[-31,c(7,8,10,11:13,15:36)]
+model<-model[,-c(20:23)]
+start<-lm(lMn_2013~1,data=model)
+summary(start)
+full<-lm(lMn_2013~.,data=model)
+summary(full)
+modelf<-step(start, scope=list(lower=start, upper=full), direction="forward")
+summary(modelf)
+modelf$anova
+```
+#Backward Elinimation
+The Backward Elimination starts with all regressors in the model and delete a regressor with highest AIC each step until the model reaches the lowest AIC.
+
+```{r,echo=TRUE}
+modelb<-step(full,data=model, direction="backward")
+modelb$anova
+summary(modelb)
+```
+
+#Stepwise Regression
+```{r,echo=TRUE}
+modelstep<-step(start, scope = list(upper=full), direction="both")
+summary(modelstep)
+```
+
+#Further Analysis of different three models
+Based above, we have the following three models.
+
+| Model | Variables | AIC | 
+| - | :-: | -: | 
+| Forward: Model F | x1, x2, x3, x4, x5, x6, x7 | -204.64 | 
+| Backward: Model B | x1, x2, x3, x4, x5, x6, x8 | -205.82 | 
+| Stepwise: Model S | x1, x2, x3, x4, x5, x6     | -206.31  |
+
+Where x1: Mn_tlane
+x2: FC_Minor1
+x3:lpv_2013
+x4: lMj_2013
+x5: Mj_tlane
+x6: FC_Major1
+x7: Mj_TWLTL
+x8: Mn_TWLTL
+
+According to AIC, Model S with the smallest AIC is the best possible model. However, the AIC for Model B with less regressors is only slight larger than -206.31. Thus, other criteria should be taken into consideration during model selection.
+Based on all regresors x1, x2, x3, x4, x5, x6, x7 and x8, an all possible regression is performed to search any other possible model using different model evaluation criterion. Figure 3-5 display possible models under adjusted R2, Cp statistics and Bayesian Analogues (BIC). The white cell in these three figures means the corresponding regressor is not introduced into the model and the black cell means the corresponding regressor is introduced into the model.
+
+```{r,echo=TRUE}
+library(leaps)
+leaps=regsubsets(lMn_2013 ~ Mn_tlane + FC_Minor1 + lpv_2013 + Mj_TWLTL + 
+                     lMj_2013 + Mj_tlane + FC_Major1 + Mn_TWLTL, data = model,nbest=5)
+plot(leaps,scale="adjr2")
+```
+  
+Based on figure above, the “best” model is built with all regressors except for Mj_TWLTW, which is Model S and the corresponding adjusted R2 is 0.78. The figure also shows adjusted R2 for model B which is built with all regressors except for Mj_TWLTL and Mn_TWLTL is 0.77.
+
+```{r,echo=TRUE}
+plot(leaps,scale="Cp")
+```
+
+Figure above indicates the “best” model is still Model S and the corresponding Cp statistics is 7.1. Cp statistics for Model B built without Mj_TWLTL and Mn_TWLTL is 7.3.
+
+```{r,echo=TRUE}
+plot(leaps,scale="bic")
+```
+
+From figure above, the lowest BIC (-73) corresponds to the model built without Mj_TWLTL and Mn_TWLTL, which is model B. BIC for model S built without Mj_TWLTL is -72.
+
+The three figures above indicated that Model S and Model B might be the two most suitable
+regression models here based on the overall performance. Table 4 concluded all model evaluation criterion used above for the two models. It is extremely hard to decide which model is the “best” because all evaluation indicators are very close to each other. Finally, model B is selected as the final model because less number of regressors enjoys lower cost when collection data. In addition, “the simpler, the better” is another principle for building models especially for real-world projects.
+
+```{r,echo=TRUE}
+library("qpcR")
+  PRESS(modelf)
+  PRESS(modelb)
+  PRESS(modelstep)
+```
+
+Table 4
+
+| Model | AIC | BIC | Cp | Number of Regressors | Adj. R Squ | PRESS |  
+| - | :-: | :-: |:-: |:-: |:-: |-: | 
+| Model S | -206.31 | -72 | 7.1 | 7 | 0.78 | 2.82 |
+| Model B | -205.82 | -73 | 7.3 | 6 | 0.77 | 2/75 |
+
+#Overall F test and individual t test for the final model:
+```{r,echo=TRUE}
+final<-modelb
+summary(modelb)
+```
+
+##Resudual Analysis
+To investigate the model adequacy, thorough residual analysis is conducted. First, Normal
+probability plot (Figure below) of residuals is used to check normality assumption. Figure shows that most
+points lie approximately along a straight line. In addition, the result of Shapiro-Wilk Normality test ( W =
+0.978, p=0.2986) shows that the model does not violate the normality assumption.
+
+```{r,echo=TRUE}
+qqnorm(final$residuals)
+qqline(final$residuals)
+shapiro.test(final$residuals)
+```
+
+Moreover, Added-variable plots (Figure below) are used to investigate the marginal relationship of a
+repressor given the other variables that are in the model. It shows that linear relationship between
+Mj_tlane, Mn_tlane, lMj_2013 and lpv_2013 are clear, which verified our assumption that multiple
+linear regression is a suitable method in this case. As added-variable plots are only used for numeric
+variables, functional classification of major road and minor road, as categorical variables, do not apply
+for this plot here.
+
+```{r,echo=TRUE}
+require(car)
+avPlots(final,terms=~. )
+```
+
+##Discussion
+Basically, the model is corresponding to the fundamental principles of transportation research. The
+variables contributing significantly in the model offer three kinds of information which affects AADT of
+minor roads. First part of information comes from the closest paralleled road segment with similar
+classification. In most cases, minor road segments and the paralleled road segments share the same, or
+at least similar, build environment, projected AADT and design standard. Thus, as a significant indicator
+of AADT of minor road, this variable should be highly positive related to the response variable, which is
+also verified by the positive coefficient in the model.
+
+The second part of information is from the minor roads themselves. Based on the segment design
+standard, the more lanes there are, the higher classification is (Collector is lower than Arterial), the
+higher traffic volume the designers expected. The coefficients of number of total lanes in minor road
+and minor road classification agree with the concept here.
+
+The third part, which is the most complicated part, is from the major road segment. On the one
+hand, the high AADT on the major road indicates that the base number of turning vehicles from major
+road to minor road is large. Thus, the coefficient of major road AADT is positive. On the other hand,
+more traffic lanes and higher classification of major road lower the probability for vehicles to make turns
+to minor road because most vehicles will stay on the major road segment. In this way, the negative
+coefficient of total traffic lanes on major road and the positive coefficient of major road classification
+make sense in the model.
+
+However, one thing need to be notice here is that none of the social-demographic variables is
+significant though many previous researches mentioned they are very important to traffic demand of
+minor roads. The reasons might be found when going back to the database. All social-demographic
+variables being collected in this case are based on the city range because no data for smaller zones are
+available. Apparently, city-level data is not good enough for estimating specific AADT at an intersection.
+More detailed information is needed in the model. In addition, some more representative and widely
+used variables, such as land-use indicator, average number of vehicles per household owned, etc, are
+not collected in the database. The discussion above might explain why the model does not include
+social-demographic variables at all.
+
+##Outlier Analysis
+```{r,echo=TRUE}
+plot(final)
+```
+
+Four large residuals (observation 12, 39, 55 and 65) that lie quite far away from the rest could be
+observed from the figures. These points are potential outliers.
+
+In order to identify the outliers of the regression model, both overall t-test and independent t-test
+is conducted. Results of overall t-test show that there are no observations that are influential. Table 4.2
+shows the results of independent t-test. However, the independent t-test show that there are only
+observations 55 and 65 are statistically significant, which means that observations 55 and 65 are
+influential.
+
+Check 54th observation 
+```{r,echo=TRUE}
+check1<-model[-54,]
+    summary(final)
+    checkm1<-lm(lMn_2013 ~ Mj_tlane + Mn_tlane + lMj_2013 + lpv_2013 + 
+                 FC_Major1 + FC_Minor1, data = check1)
+    summary(checkm1)
+```
+
+Check 65th observation 
+```{r,echo=TRUE}
+    check2<-model[-64,]
+    summary(final)
+    checkm2<-lm(lMn_2013 ~ Mj_tlane + Mn_tlane + lMj_2013 + lpv_2013 + 
+                 FC_Major1 + FC_Minor1, data = check2)
+    summary(checkm2)
+```
+
+Check both 55th and 65th obervation 
+```{r,echo=TRUE}
+    check3<-check2[-54,]
+    summary(final)
+    checkm3<-lm(lMn_2013 ~ Mj_tlane + Mn_tlane + lMj_2013 + lpv_2013 + 
+                 FC_Major1 + FC_Minor1, data = check3)
+    summary(checkm3)
+```
+
+The results above show that removing observations 55 and 65 has almost no effect on the estimates of the
+regression coefficients, R2 and residual standard error. Thus, we can draw the conclusion that even
+though these two observations have high residuals, they are not influential points to the model. It is
+relatively confident that including those points does not seriously limit the use of model.
+
+##Conclusion and Future Work
+This project proposed a multiple linear regression model in order to estimate AADT of minor road
+segments at signalized intersections. The final model indicated that AADT of minor road is contributed
+by Mj_tlan, Mn_tlane, lMj_2013, lpv_2013, FC_Major1,FC_Minor1. However, there are still some
+improvements could be explored since not all works are done within limited time. First of all, more and
+more detailed social-demographic variables should be searched and collected to enrich the database.
+Models should be re-run and test with the new dataset in order to see if those variables help in the
+model. The other one is the problem of multicollinearity. As more potential variables are introduce,
+multicollinearity would be a severe problem based on the previous experience. Thus, principle
+component analysis might be useful in the future work.
