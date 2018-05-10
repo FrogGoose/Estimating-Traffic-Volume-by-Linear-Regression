@@ -201,7 +201,7 @@ qqline(y=log(mydata[,"m2017.lMn"]))
 Variable selection and model building
 =====================================
 
-All regression analysis is impractical and inefficient because 222-1 models need to be analyzed by this method. Therefore, Forward Selection, Backward Elimination and Stepwise regression by the Akaike Information Criterion (AIC) were performed first, and all regression analysis, based on all variables mentioned by the results of three methods performed before, were used to search any other possible models.
+All regression analysis is impractical and inefficient because 2^22-1 models need to be analyzed by this method. Therefore, Forward Selection, Backward Elimination and Stepwise regression by the Akaike Information Criterion (AIC) were performed first, and all regression analysis, based on all variables mentioned by the results of three methods performed before, were used to search any other possible models.
 
 Forward Selection
 =================
